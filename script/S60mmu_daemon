@@ -1,0 +1,23 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          mmu_daemon
+# Required-Start:    $network
+# Default-Start:     S
+# Short-Description: Start MMU daemon
+### END INIT INFO
+
+case "$1" in
+start)
+    echo "Starting MMU daemon..."
+    /usr/bin/python3 /usr/data/printer_data/config/pico-mmu/mmu_daemon.py &
+    ;;
+stop)
+    echo "Stopping MMU daemon... not implemented"
+    ;;
+*)
+    echo "Usage: $0 {start|stop}"
+    exit 1
+    ;;
+esac
+
+exit 0

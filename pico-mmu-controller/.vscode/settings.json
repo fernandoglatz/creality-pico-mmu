@@ -1,0 +1,34 @@
+{
+    "files.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/CVS": true,
+        "**/.DS_Store": true,
+        "**/Thumbs.db": true,
+        ".history": true
+    },
+    "explorerExclude.backup": {},
+    "files.associations": {
+        "string": "cpp",
+        "system_error": "cpp",
+        "optional": "cpp",
+        "istream": "cpp",
+        "ostream": "cpp",
+        "array": "cpp",
+        "functional": "cpp",
+        "tuple": "cpp",
+        "type_traits": "cpp",
+        "utility": "cpp",
+        "*.tcc": "cpp",
+        "pins_arduino.h": "c"
+    },
+    "workbench.colorCustomizations": {
+        "statusBar.background": "#b5fc9e",
+        "statusBar.foreground": "#15202b",
+        "statusBarItem.hoverBackground": "#8ffa6d",
+        "statusBarItem.remoteBackground": "#b5fc9e",
+        "statusBarItem.remoteForeground": "#15202b"
+    },
+    "peacock.color": "#b5fc9e"
+}
