@@ -120,6 +120,7 @@ const long ORANGE_COLOR = pixels.Color(255, 128, 0);
 int filamentPositions[] = {166, 142, 114, 94, 68, 44, 22, 0};
 long extrudeMilimeters = 23;
 long retractMilimeters = 60;
+long minRetractMilimeters = 70;
 long milimetersToStuck = 50;
 double milimetersPerRotation = 18.28571429;
 
@@ -389,7 +390,7 @@ bool playMIDI(int position) {
 }
 
 void setMissingFilament() {
-    logInfo(F("Setting missing filament, pausing print"), F(""));
+    logInfo(F("Setting missing filament, pausing print"), "");
     mcp.digitalWrite(CREALITY_FILAMENT_SENSOR_PIN, HIGH);
 }
 
@@ -446,7 +447,7 @@ void testLED(int index) {
 }
 
 void safeTestLED(int index) {
-    logInfo(F("Testing LEDs"), F(""));
+    logInfo(F("Testing LEDs"), "");
 
     saveLEDStates();
     testLED(index);
@@ -454,7 +455,7 @@ void safeTestLED(int index) {
 }
 
 void testLEDs() {
-    logInfo(F("Testing LEDs"), F(""));
+    logInfo(F("Testing LEDs"), "");
 
     saveLEDStates();
 
@@ -589,7 +590,7 @@ unsigned long rotateMmu(long degrees, int rpm, bool accelerationEnabled, bool de
         totalSteps++;
 
         if (hubState != lastHubState && resetOnSensor) {
-            logInfo(F("Resetting on filament sensor"), F(""));
+            logInfo(F("Resetting on filament sensor"), "");
 
             i = 0;
             skipStepCount = 0;
@@ -616,7 +617,7 @@ void rotateMmuToSensor(int targetState, long milimeters, long milimetersToStuck,
     if (hubState == targetState) {
         hubStateStucked = true;
         changeLED(activeFilament, YELLOW_COLOR);
-        logWarn(F("Hub sensor stucked or missing"), F(""));
+        logWarn("Hub sensor stucked or missing", (""));
     }
 
     digitalWrite(MMU_ENABLE_PIN, LOW);
@@ -629,6 +630,7 @@ void rotateMmuToSensor(int targetState, long milimeters, long milimetersToStuck,
     }
 
     unsigned long stepsToStuck = getStepsFromMilimeters(milimetersToStuck);
+    unsigned long minRetractSteps = getStepsFromMilimeters(minRetractMilimeters);
 
     if (direction != MMU_DIRECTION) {
         milimeters *= -1;  // retract
@@ -641,7 +643,7 @@ void rotateMmuToSensor(int targetState, long milimeters, long milimetersToStuck,
     unsigned long checkIntervalCount = 0;
     unsigned long steps = 0;
 
-    while (hubState != targetState || hubStateStucked) {
+    while (hubState != targetState || hubStateStucked || (direction != MMU_DIRECTION && steps < minRetractSteps)) {
         if (skipStepCount > MMU_ACCEL_DECEL_SKIP_STEPS && currentDelay != targetDelay) {
             skipStepCount = 0;
             currentDelay -= 1;
@@ -651,12 +653,12 @@ void rotateMmuToSensor(int targetState, long milimeters, long milimetersToStuck,
             }
         }
 
-        if (direction != MMU_DIRECTION && steps > stepsToStuck) {
+        if (direction != MMU_DIRECTION && steps > stepsToStuck && steps > minRetractSteps) {
             hubStateStucked = true;
 
             changeLED(activeFilament, YELLOW_COLOR);
 
-            logWarn(F("Hub sensor stucked or missing on retract"), F(""));
+            logWarn("Hub sensor stucked or missing on retract", (""));
             break;
 
         } else if (direction == MMU_DIRECTION && steps > stepsToStuck && !autoExtruding) {
@@ -664,7 +666,7 @@ void rotateMmuToSensor(int targetState, long milimeters, long milimetersToStuck,
 
             changeLED(activeFilament, YELLOW_COLOR);
 
-            logWarn(F("Hub sensor stucked or missing on extrude"), F(""));
+            logWarn("Hub sensor stucked or missing on extrude", (""));
             break;
         }
 
@@ -677,7 +679,7 @@ void rotateMmuToSensor(int targetState, long milimeters, long milimetersToStuck,
 
                 if (filamentState == HIGH) {
                     digitalWrite(MMU_ENABLE_PIN, HIGH);
-                    logInfo("Filament T" + String(activeFilament) + " removed", F(""));
+                    logInfo("Filament T" + String(activeFilament) + " removed", "");
 
                     setMissingFilament();
 
@@ -721,7 +723,7 @@ void extrude(long milimeters, int rpm) {
 }
 
 void retract(long milimeters, int rpm) {
-    long totalMilimetersToStuck = milimetersToStuck + extrudeMilimeters + milimeters;
+    long totalMilimetersToStuck = extrudeMilimeters + milimeters;
     rotateMmuToSensor(HIGH, milimeters, totalMilimetersToStuck, !MMU_DIRECTION, rpm);
 }
 
@@ -745,7 +747,7 @@ void readSensors(bool soundEnabled) {
             filamentStates[i] = state;
 
             if (state == LOW) {
-                logInfo("Filament T" + String(i) + " inserted", F(""));
+                logInfo("Filament T" + String(i) + " inserted", "");
 
                 if (i == activeFilament) {
                     unsetMissingFilament();
@@ -765,7 +767,7 @@ void readSensors(bool soundEnabled) {
                 }
 
             } else {
-                logInfo("Filament T" + String(i) + " removed", F(""));
+                logInfo("Filament T" + String(i) + " removed", "");
 
                 if (i == activeFilament) {
                     setMissingFilament();
@@ -806,7 +808,7 @@ void readActionButtonPressed() {
         buttonClickSound();
 
         if (buttonPressedDuration > 1000) {
-            logInfo(F("Action button pressed long"), F(""));
+            logInfo(F("Action button pressed long"), "");
 
             if (activeFilament > -1 && filamentStates[activeFilament] == LOW && hubState == HIGH) {
                 autoExtruding = true;
@@ -819,7 +821,7 @@ void readActionButtonPressed() {
                 autoExtruding = false;
             }
         } else {
-            logInfo(F("Action button pressed short"), F(""));
+            logInfo(F("Action button pressed short"), "");
             filamentRelease();
         }
     }
@@ -831,7 +833,7 @@ void processSerialInput() {
     input.trim();
 
     if (input == F("START")) {
-        logInfo(F("Starting up..."), F(""));
+        logInfo(F("Starting up..."), "");
 
         disableLEDs();
         startupLEDs();
@@ -843,12 +845,12 @@ void processSerialInput() {
 
         started = true;
 
-        logInfo(F("Started"), F(""));
+        logInfo(F("Started"), "");
 
         responseOk();
 
     } else if (input.startsWith(F("SYNC"))) {
-        logInfo(F("Syncing config..."), F(""));
+        logInfo(F("Syncing config..."), "");
 
         int newPositions[NUMBER_OF_FILAMENTS];
 
@@ -871,6 +873,11 @@ void processSerialInput() {
             sscanf(rtrStr, "RETRACT_MM %ld", &retractMilimeters);
         }
 
+        const char* minRetrStr = strstr(inputStr, "MIN_RETRACT_MM");
+        if (minRetrStr) {
+            sscanf(minRetrStr, "MIN_RETRACT_MM %ld", &minRetractMilimeters);
+        }
+
         const char* mmPerRotStr = strstr(inputStr, "MM_PER_ROTATION");
         if (mmPerRotStr) {
             sscanf(mmPerRotStr, "MM_PER_ROTATION %lf", &milimetersPerRotation);
@@ -881,25 +888,26 @@ void processSerialInput() {
             sscanf(mmToStkStr, "MM_TO_STUCK %ld", &milimetersToStuck);
         }
 
-        logInfo(F("New positions: "), F(""));
+        logInfo(F("New positions: "), "");
         for (int i = 0; i < NUMBER_OF_FILAMENTS; i++) {
-            logInfo(String(i + 1) + F(" => ") + String(filamentPositions[i]), F(""));
+            logInfo(String(i + 1) + " => " + String(filamentPositions[i]), "");
         }
 
         logInfo(F("New extrude mm: "), String(extrudeMilimeters));
         logInfo(F("New retract mm: "), String(retractMilimeters));
+        logInfo(F("New min retract mm: "), String(minRetractMilimeters));
         logInfo(F("New mm per rotation: "), String(milimetersPerRotation));
         logInfo(F("New mm to stuck: "), String(milimetersToStuck));
-        logInfo(F("Config synced"), F(""));
+        logInfo(F("Config synced"), "");
         responseOk();
 
     } else if (input.startsWith(F("FILAMENT_RELEASE"))) {
-        logInfo(F("Releasing filament"), F(""));
+        logInfo(F("Releasing filament"), "");
 
         responseOk();  // async
         filamentRelease();
 
-        logInfo(F("Filament released"), F(""));
+        logInfo(F("Filament released"), "");
 
     } else if (input.startsWith(F("FILAMENT"))) {
         int index = input.substring(input.indexOf(' ') + 1).toInt();
@@ -908,7 +916,7 @@ void processSerialInput() {
         bool result = setFilament(index);
 
         if (result) {
-            logInfo(F("Filament set"), F(""));
+            logInfo(F("Filament set"), "");
             responseOk();
         } else {
             logError(F("Failed to set filament T"), String(index));
@@ -920,9 +928,9 @@ void processSerialInput() {
 
         sscanf(input.c_str(), "EXTRUDE %ld %d", &milimeters, &rpm);
 
-        logInfo(F("Extruding..."), F(""));
+        logInfo(F("Extruding..."), "");
         extrude(milimeters, rpm);
-        logInfo(F("Extruded"), F(""));
+        logInfo(F("Extruded"), "");
         responseOk();
 
     } else if (input.startsWith(F("RETRACT"))) {
@@ -931,22 +939,23 @@ void processSerialInput() {
 
         sscanf(input.c_str(), "RETRACT %ld %d", &milimeters, &rpm);
 
-        logInfo(F("Retracting..."), F(""));
+        logInfo(F("Retracting..."), "");
 
         responseOk();  // async
+        delay(100);
 
         retract(milimeters, rpm);
-        logInfo(F("Retracted"), F(""));
+        logInfo(F("Retracted"), "");
 
     } else if (input.startsWith(F("SWAP_FINISH"))) {
-        logInfo(F("Swap finishing..."), F(""));
+        logInfo(F("Swap finishing..."), "");
         bool finished = swapFinish();
 
         if (finished) {
-            logInfo(F("Swap finished"), F(""));
+            logInfo(F("Swap finished"), "");
             responseOk();
         } else {
-            logInfo(F("Swap not finished"), F(""));
+            logInfo(F("Swap not finished"), "");
             responseError();
         }
 
@@ -984,7 +993,7 @@ void processSerialInput() {
         logInfo(F("Playing MIDI "), String(position));
         bool played = playMIDI(position);
         if (played) {
-            logInfo(F("MIDI played"), F(""));
+            logInfo(F("MIDI played"), "");
             responseOk();
         } else {
             logError(F("Failed to play MIDI "), String(position));
@@ -992,10 +1001,10 @@ void processSerialInput() {
         }
 
     } else if (input.startsWith(F("TEST_LEDS"))) {
-        logInfo(F("Testing LEDs..."), F(""));
+        logInfo(F("Testing LEDs..."), "");
 
         testLEDs();
-        logInfo(F("LEDs tested"), F(""));
+        logInfo(F("LEDs tested"), "");
         responseOk();
 
     } else if (input.startsWith(F("TEST_LED"))) {
@@ -1004,15 +1013,11 @@ void processSerialInput() {
 
         safeTestLED(index - 1);
 
-        logInfo(F("LED tested"), F(""));
-        responseOk();
-
-    } else if (input.startsWith(F("ECHO"))) {
-        logInfo(F("Echoing "), input);
+        logInfo(F("LED tested"), "");
         responseOk();
 
     } else if (input.startsWith(F("STRESS"))) {
-        logInfo(F("Stressing... "), F(""));
+        logInfo(F("Stressing... "), "");
         for (int i = 0; i < 10; i++) {
             setMMUServoPosition(0);
             setMMUServoPosition(180);
@@ -1027,7 +1032,7 @@ void processSerialInput() {
 
 void setup() {
     Serial.begin(BAUD_RATE);
-    logInfo(F("Starting..."), F(""));
+    logInfo(F("Starting..."), "");
 
     randomSeed(analogRead(0));
 
@@ -1047,7 +1052,7 @@ void setup() {
     setMMUServoPosition(0);
 
     if (!mcp.begin_I2C()) {
-        logError(F("Failed to initialize MCP23017"), F(""));
+        logError(F("Failed to initialize MCP23017"), "");
         blinkErrorLEDs();
     }
 
