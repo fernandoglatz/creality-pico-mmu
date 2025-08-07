@@ -117,7 +117,7 @@ const long ORANGE_COLOR = pixels.Color(255, 128, 0);
 
 // config from machine
 // default, change it in printer config
-int filamentPositions[] = {166, 142, 114, 94, 68, 44, 22, 0};
+int filamentPositions[] = {170, 148, 126, 104, 80, 56, 32, 10};
 long extrudeMilimeters = 23;
 long retractMilimeters = 60;
 long minRetractMilimeters = 70;
@@ -417,6 +417,11 @@ long getStepsFromMilimeters(long milimeters) {
     return getStepsFromDegrees(degrees);
 }
 
+long getMilimetersFromSteps(long steps) {
+    double degrees = steps * 360 / (unsigned long)MMU_MICROSTEPS / (unsigned long)MMU_MOTOR_STEPS;
+    return degrees * milimetersPerRotation / 360;
+}
+
 void setCutterServoPosition(int position) {
     cutterServo.attach(CUTTER_SERVO_PIN);
     cutterServo.write(position);
@@ -707,11 +712,13 @@ void rotateMmuToSensor(int targetState, long milimeters, long milimetersToStuck,
         steps += rotateMmu(degrees, rpm, false, true, true);
     }
 
+    long stepsMilimeters = getMilimetersFromSteps(steps);
+
     if (direction == MMU_DIRECTION) {
-        logInfo(F("Extrude step count: "), String(steps));
+        logInfo(F("Extruded milimeters: "), String(stepsMilimeters));
 
     } else if (direction != MMU_DIRECTION) {
-        logInfo(F("Retract step count: "), String(steps));
+        logInfo(F("Retracted milimeters: "), String(stepsMilimeters));
     }
 
     digitalWrite(MMU_ENABLE_PIN, HIGH);
