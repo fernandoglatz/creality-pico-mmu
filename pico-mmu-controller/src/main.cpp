@@ -529,6 +529,7 @@ void filamentRelease() {
 bool swapFinish() {
     if (hubStateStucked) {
         setMissingFilament();
+        errorMIDI(false);
         return false;
     }
 
@@ -709,7 +710,8 @@ void rotateMmuToSensor(int targetState, long milimeters, long milimetersToStuck,
 
     if (!hubStateStucked) {
         long degrees = getDegreesFromMilimeters(milimeters);
-        steps += rotateMmu(degrees, rpm, false, true, true);
+        bool resetOnSensor = direction != MMU_DIRECTION;  // reset on retract
+        steps += rotateMmu(degrees, rpm, false, true, resetOnSensor);
     }
 
     long stepsMilimeters = getMilimetersFromSteps(steps);
