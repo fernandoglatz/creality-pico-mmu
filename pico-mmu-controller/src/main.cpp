@@ -22,7 +22,6 @@
 #define MMU_MICROSTEPS 64
 #define MMU_MIN_RPM 50
 #define MMU_DIRECTION HIGH
-const unsigned long MMU_SENSOR_CHECK_INTERVAL = (unsigned long)MMU_MOTOR_STEPS * (unsigned long)MMU_MICROSTEPS * (unsigned long)10;
 
 #define NUM_LEDS 16  // 2 bars of 8 LEDs each
 #define NUMBER_OF_FILAMENTS 8
@@ -501,9 +500,7 @@ bool setFilament(int index) {
         }
 
     } else {
-        setMissingFilament();
         changeLED(activeFilament, RED_COLOR);
-
         errorMIDI(false);
         blinkLED(activeFilament, RED_COLOR);
         return false;
@@ -528,7 +525,7 @@ void filamentRelease() {
 }
 
 bool swapFinish() {
-    if (hubStateStucked) {
+    if (hubStateStucked || filamentStates[activeFilament] == HIGH) {
         setMissingFilament();
         errorMIDI(false);
         return false;
@@ -674,28 +671,6 @@ void rotateMmuToSensor(int targetState, long milimeters, long milimetersToStuck,
 
             logWarn("Hub sensor stucked or missing on extrude", (""));
             break;
-        }
-
-        if (checkIntervalCount > MMU_SENSOR_CHECK_INTERVAL) {
-            checkIntervalCount = 0;
-
-            if (activeFilament != -1) {
-                int filamentPin = FILAMENT_SENSOR_PINS[activeFilament];
-                bool filamentState = mcp.digitalRead(filamentPin);
-
-                if (filamentState == HIGH) {
-                    digitalWrite(MMU_ENABLE_PIN, HIGH);
-                    logInfo("Filament T" + String(activeFilament) + " removed", "");
-
-                    setMissingFilament();
-
-                    changeLED(activeFilament, RED_COLOR);
-                    errorMIDI(false);
-                    blinkLED(activeFilament, RED_COLOR);
-
-                    return;
-                }
-            }
         }
 
         digitalWrite(MMU_STEP_PIN, HIGH);
