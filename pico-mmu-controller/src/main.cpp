@@ -108,6 +108,7 @@ bool autoExtruding = false;
 const long BLACK_COLOR = pixels.Color(0, 0, 0);
 const long RED_COLOR = pixels.Color(255, 0, 0);
 const long GREEN_COLOR = pixels.Color(0, 255, 0);
+const long DARK_GREEN_COLOR = pixels.Color(0, 25, 0);
 const long BLUE_COLOR = pixels.Color(0, 0, 255);
 const long YELLOW_COLOR = pixels.Color(255, 255, 0);
 const long WHITE_COLOR = pixels.Color(255, 255, 255);
@@ -118,16 +119,14 @@ const long ORANGE_COLOR = pixels.Color(255, 128, 0);
 // config from machine
 // default, change it in printer config
 int filamentPositions[] = {170, 148, 126, 104, 80, 56, 32, 10};
-long extrudeMilimeters = 23;
+long extrudeMilimeters = 30;
 long retractMilimeters = 60;
-long minRetractMilimeters = 70;
-long milimetersToStuck = 50;
+long milimetersToStuck = 80;
 double milimetersPerRotation = 18.28571429;
 
 void logInfo(const String& message, const String& extra) {
     Serial.print("[");
     Serial.print(millis());
-
     Serial.print("] INFO - ");
     Serial.print(message);
     Serial.println(extra);
@@ -417,8 +416,8 @@ long getStepsFromMilimeters(long milimeters) {
     return getStepsFromDegrees(degrees);
 }
 
-long getMilimetersFromSteps(long steps) {
-    double degrees = steps * 360 / (unsigned long)MMU_MICROSTEPS / (unsigned long)MMU_MOTOR_STEPS;
+long getMilimetersFromSteps(unsigned long steps) {
+    long degrees = steps * 360UL / (MMU_MICROSTEPS * MMU_MOTOR_STEPS);
     return degrees * milimetersPerRotation / 360;
 }
 
@@ -483,7 +482,7 @@ bool setFilament(int index) {
             changeLED(i, BLACK_COLOR);
         }
     }
-    changeLED(activeFilament, ORANGE_COLOR);
+    changeLED(activeFilament, WHITE_COLOR);
 
     bool filamentState = filamentStates[activeFilament];
     int position = filamentPositions[activeFilament];
@@ -494,7 +493,9 @@ bool setFilament(int index) {
         unsetMissingFilament();
 
         if (hubStateStucked) {
-            changeLED(activeFilament, YELLOW_COLOR);
+            changeLED(activeFilament, ORANGE_COLOR);
+        } else if (hubState == HIGH) {
+            changeLED(activeFilament, DARK_GREEN_COLOR);
         } else {
             changeLED(activeFilament, GREEN_COLOR);
         }
@@ -515,11 +516,11 @@ void filamentRelease() {
     saveLEDStates();
 
     if (lastMMUPosition > 90) {
-        changeLED(7, ORANGE_COLOR);
+        changeLED(7, WHITE_COLOR);
         setMMUServoPosition(filamentPositions[7]);
 
     } else {
-        changeLED(0, ORANGE_COLOR);
+        changeLED(0, WHITE_COLOR);
         setMMUServoPosition(filamentPositions[0]);
     }
 
@@ -556,7 +557,7 @@ unsigned long rotateMmu(long degrees, int rpm, bool accelerationEnabled, bool de
         rpm = MMU_MIN_RPM;
     }
 
-    unsigned long totalSteps;
+    unsigned long totalSteps = 0;
     unsigned long steps = getStepsFromDegrees(degrees);
     unsigned long decelerationSteps = steps - (steps / 100UL);
 
@@ -622,7 +623,7 @@ void rotateMmuToSensor(int targetState, long milimeters, long milimetersToStuck,
 
     if (hubState == targetState) {
         hubStateStucked = true;
-        changeLED(activeFilament, YELLOW_COLOR);
+        changeLED(activeFilament, ORANGE_COLOR);
         logWarn("Hub sensor stucked or missing", (""));
     }
 
@@ -636,7 +637,6 @@ void rotateMmuToSensor(int targetState, long milimeters, long milimetersToStuck,
     }
 
     unsigned long stepsToStuck = getStepsFromMilimeters(milimetersToStuck);
-    unsigned long minRetractSteps = getStepsFromMilimeters(minRetractMilimeters);
 
     if (direction != MMU_DIRECTION) {
         milimeters *= -1;  // retract
@@ -649,7 +649,7 @@ void rotateMmuToSensor(int targetState, long milimeters, long milimetersToStuck,
     unsigned long checkIntervalCount = 0;
     unsigned long steps = 0;
 
-    while (hubState != targetState || hubStateStucked || (direction != MMU_DIRECTION && steps < minRetractSteps)) {
+    while (hubState != targetState || hubStateStucked) {
         if (skipStepCount > MMU_ACCEL_DECEL_SKIP_STEPS && currentDelay != targetDelay) {
             skipStepCount = 0;
             currentDelay -= 1;
@@ -659,10 +659,10 @@ void rotateMmuToSensor(int targetState, long milimeters, long milimetersToStuck,
             }
         }
 
-        if (direction != MMU_DIRECTION && steps > stepsToStuck && steps > minRetractSteps) {
+        if (direction != MMU_DIRECTION && steps > stepsToStuck) {
             hubStateStucked = true;
 
-            changeLED(activeFilament, YELLOW_COLOR);
+            changeLED(activeFilament, ORANGE_COLOR);
 
             logWarn("Hub sensor stucked or missing on retract", (""));
             break;
@@ -670,7 +670,7 @@ void rotateMmuToSensor(int targetState, long milimeters, long milimetersToStuck,
         } else if (direction == MMU_DIRECTION && steps > stepsToStuck && !autoExtruding) {
             hubStateStucked = true;
 
-            changeLED(activeFilament, YELLOW_COLOR);
+            changeLED(activeFilament, ORANGE_COLOR);
 
             logWarn("Hub sensor stucked or missing on extrude", (""));
             break;
@@ -708,11 +708,18 @@ void rotateMmuToSensor(int targetState, long milimeters, long milimetersToStuck,
         steps++;
     }
 
-    if (!hubStateStucked) {
-        long degrees = getDegreesFromMilimeters(milimeters);
-        bool resetOnSensor = direction != MMU_DIRECTION;  // reset on retract
-        steps += rotateMmu(degrees, rpm, false, true, resetOnSensor);
+    if (hubStateStucked) {
+        changeLED(activeFilament, ORANGE_COLOR);
+    } else if (hubState == HIGH) {
+        changeLED(activeFilament, DARK_GREEN_COLOR);
+    } else {
+        changeLED(activeFilament, GREEN_COLOR);
     }
+
+    long degrees = getDegreesFromMilimeters(milimeters);
+    bool resetOnSensor = direction != MMU_DIRECTION;  // reset on retract
+    unsigned long extraSteps = rotateMmu(degrees, rpm, false, true, resetOnSensor);
+    steps = steps + extraSteps;
 
     long stepsMilimeters = getMilimetersFromSteps(steps);
 
@@ -727,12 +734,12 @@ void rotateMmuToSensor(int targetState, long milimeters, long milimetersToStuck,
 }
 
 void extrude(long milimeters, int rpm) {
-    long totalMilimetersToStuck = milimetersToStuck + retractMilimeters + milimeters;
+    long totalMilimetersToStuck = milimetersToStuck + retractMilimeters;
     rotateMmuToSensor(LOW, milimeters, totalMilimetersToStuck, MMU_DIRECTION, rpm);
 }
 
 void retract(long milimeters, int rpm) {
-    long totalMilimetersToStuck = extrudeMilimeters + milimeters;
+    long totalMilimetersToStuck = milimetersToStuck + extrudeMilimeters;
     rotateMmuToSensor(HIGH, milimeters, totalMilimetersToStuck, !MMU_DIRECTION, rpm);
 }
 
@@ -741,9 +748,13 @@ void readHubState() {
         logInfo(F("Hub state changed to "), String(hubState));
         lastHubState = hubState;
 
-        if (activeFilament > -1 && hubState == LOW && filamentStates[activeFilament] == LOW) {
-            changeLED(activeFilament, GREEN_COLOR);
-            unsetMissingFilament();
+        if (activeFilament > -1 && filamentStates[activeFilament] == LOW && !hubStateStucked) {
+            if (hubState == HIGH) {
+                changeLED(activeFilament, DARK_GREEN_COLOR);
+            } else {
+                changeLED(activeFilament, GREEN_COLOR);
+                unsetMissingFilament();
+            }
         }
     }
 }
@@ -762,7 +773,7 @@ void readSensors(bool soundEnabled) {
                     unsetMissingFilament();
 
                     if (hubStateStucked) {
-                        changeLED(activeFilament, YELLOW_COLOR);
+                        changeLED(activeFilament, ORANGE_COLOR);
                     } else {
                         changeLED(activeFilament, GREEN_COLOR);
                     }
@@ -823,7 +834,7 @@ void readActionButtonPressed() {
                 autoExtruding = true;
                 int mmuPosition = filamentPositions[activeFilament];
 
-                changeLED(activeFilament, ORANGE_COLOR);
+                changeLED(activeFilament, WHITE_COLOR);
                 setMMUServoPosition(mmuPosition);
                 extrude(extrudeMilimeters, MMU_DEFAULT_RPM);
                 filamentRelease();
@@ -882,11 +893,6 @@ void processSerialInput() {
             sscanf(rtrStr, "RETRACT_MM %ld", &retractMilimeters);
         }
 
-        const char* minRetrStr = strstr(inputStr, "MIN_RETRACT_MM");
-        if (minRetrStr) {
-            sscanf(minRetrStr, "MIN_RETRACT_MM %ld", &minRetractMilimeters);
-        }
-
         const char* mmPerRotStr = strstr(inputStr, "MM_PER_ROTATION");
         if (mmPerRotStr) {
             sscanf(mmPerRotStr, "MM_PER_ROTATION %lf", &milimetersPerRotation);
@@ -904,7 +910,6 @@ void processSerialInput() {
 
         logInfo(F("New extrude mm: "), String(extrudeMilimeters));
         logInfo(F("New retract mm: "), String(retractMilimeters));
-        logInfo(F("New min retract mm: "), String(minRetractMilimeters));
         logInfo(F("New mm per rotation: "), String(milimetersPerRotation));
         logInfo(F("New mm to stuck: "), String(milimetersToStuck));
         logInfo(F("Config synced"), "");
@@ -1023,14 +1028,6 @@ void processSerialInput() {
         safeTestLED(index - 1);
 
         logInfo(F("LED tested"), "");
-        responseOk();
-
-    } else if (input.startsWith(F("STRESS"))) {
-        logInfo(F("Stressing... "), "");
-        for (int i = 0; i < 10; i++) {
-            setMMUServoPosition(0);
-            setMMUServoPosition(180);
-        }
         responseOk();
 
     } else {
