@@ -118,7 +118,7 @@ const long ORANGE_COLOR = pixels.Color(255, 128, 0);
 // config from machine
 // default, change it in printer config
 int filamentPositions[] = {170, 148, 126, 104, 80, 56, 32, 10};
-long extrudeMilimeters = 30;
+long extrudeMilimeters = 32;
 long retractMilimeters = 60;
 long milimetersToStuck = 80;
 double milimetersPerRotation = 18.28571429;
