@@ -181,8 +181,8 @@ void blinkLED(int index, long color) {
 void disableLEDs() {
     for (int i = 0; i < NUM_LEDS; i++) {
         pixels.setPixelColor(i, BLACK_COLOR);
-        pixels.show();
     }
+    pixels.show();
 }
 
 void startupLEDs() {
@@ -856,6 +856,10 @@ void processSerialInput() {
             sscanf(posStr, "FILAMENT_POSITIONS %d %d %d %d %d %d %d %d",
                    &newPositions[0], &newPositions[1], &newPositions[2], &newPositions[3],
                    &newPositions[4], &newPositions[5], &newPositions[6], &newPositions[7]);
+
+            for (int i = 0; i < NUMBER_OF_FILAMENTS; i++) {
+                filamentPositions[i] = newPositions[i];
+            }
         }
 
         const char* extStr = strstr(inputStr, "EXTRUDE_MM");
