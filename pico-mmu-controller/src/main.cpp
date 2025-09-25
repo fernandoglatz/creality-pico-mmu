@@ -118,10 +118,10 @@ const long ORANGE_COLOR = pixels.Color(255, 128, 0);
 // config from machine
 // default, change it in printer config
 int filamentPositions[] = {170, 148, 126, 104, 80, 56, 32, 10};
-long extrudeMilimeters = 32;
-long retractMilimeters = 60;
-long milimetersToStuck = 80;
-double milimetersPerRotation = 18.28571429;
+long extrudeMillimeters = 32;
+long retractMillimeters = 60;
+long millimetersToStuck = 80;
+double millimetersPerRotation = 18.28571429;
 
 void logInfo(const String& message, const String& extra) {
     Serial.print("[");
@@ -403,7 +403,7 @@ void changeHubState() {
 }
 
 long getDegreesFromMilimeters(long milimeters) {
-    return milimeters * 360 / milimetersPerRotation;
+    return milimeters * 360 / millimetersPerRotation;
 }
 
 long getStepsFromDegrees(long degrees) {
@@ -417,7 +417,7 @@ long getStepsFromMilimeters(long milimeters) {
 
 long getMilimetersFromSteps(unsigned long steps) {
     long degrees = steps * 360UL / (MMU_MICROSTEPS * MMU_MOTOR_STEPS);
-    return degrees * milimetersPerRotation / 360;
+    return degrees * millimetersPerRotation / 360;
 }
 
 void setCutterServoPosition(int position) {
@@ -709,12 +709,12 @@ void rotateMmuToSensor(int targetState, long milimeters, long milimetersToStuck,
 }
 
 void extrude(long milimeters, int rpm) {
-    long totalMilimetersToStuck = milimetersToStuck + retractMilimeters;
+    long totalMilimetersToStuck = millimetersToStuck + retractMillimeters;
     rotateMmuToSensor(LOW, milimeters, totalMilimetersToStuck, MMU_DIRECTION, rpm);
 }
 
 void retract(long milimeters, int rpm) {
-    long totalMilimetersToStuck = milimetersToStuck + extrudeMilimeters;
+    long totalMilimetersToStuck = millimetersToStuck + extrudeMillimeters;
     rotateMmuToSensor(HIGH, milimeters, totalMilimetersToStuck, !MMU_DIRECTION, rpm);
 }
 
@@ -811,7 +811,7 @@ void readActionButtonPressed() {
 
                 changeLED(activeFilament, WHITE_COLOR);
                 setMMUServoPosition(mmuPosition);
-                extrude(extrudeMilimeters, MMU_DEFAULT_RPM);
+                extrude(extrudeMillimeters, MMU_DEFAULT_RPM);
                 filamentRelease();
                 autoExtruding = false;
             }
@@ -864,22 +864,22 @@ void processSerialInput() {
 
         const char* extStr = strstr(inputStr, "EXTRUDE_MM");
         if (extStr) {
-            sscanf(extStr, "EXTRUDE_MM %ld", &extrudeMilimeters);
+            sscanf(extStr, "EXTRUDE_MM %ld", &extrudeMillimeters);
         }
 
         const char* rtrStr = strstr(inputStr, "RETRACT_MM");
         if (rtrStr) {
-            sscanf(rtrStr, "RETRACT_MM %ld", &retractMilimeters);
+            sscanf(rtrStr, "RETRACT_MM %ld", &retractMillimeters);
         }
 
         const char* mmPerRotStr = strstr(inputStr, "MM_PER_ROTATION");
         if (mmPerRotStr) {
-            sscanf(mmPerRotStr, "MM_PER_ROTATION %lf", &milimetersPerRotation);
+            sscanf(mmPerRotStr, "MM_PER_ROTATION %lf", &millimetersPerRotation);
         }
 
         const char* mmToStkStr = strstr(inputStr, "MM_TO_STUCK");
         if (mmToStkStr) {
-            sscanf(mmToStkStr, "MM_TO_STUCK %ld", &milimetersToStuck);
+            sscanf(mmToStkStr, "MM_TO_STUCK %ld", &millimetersToStuck);
         }
 
         logInfo(F("New positions: "), "");
@@ -887,10 +887,10 @@ void processSerialInput() {
             logInfo(String(i + 1) + " => " + String(filamentPositions[i]), "");
         }
 
-        logInfo(F("New extrude mm: "), String(extrudeMilimeters));
-        logInfo(F("New retract mm: "), String(retractMilimeters));
-        logInfo(F("New mm per rotation: "), String(milimetersPerRotation));
-        logInfo(F("New mm to stuck: "), String(milimetersToStuck));
+        logInfo(F("New extrude mm: "), String(extrudeMillimeters));
+        logInfo(F("New retract mm: "), String(retractMillimeters));
+        logInfo(F("New mm per rotation: "), String(millimetersPerRotation));
+        logInfo(F("New mm to stuck: "), String(millimetersToStuck));
         logInfo(F("Config synced"), "");
         responseOk();
 
@@ -1078,3 +1078,5 @@ void loop() {
         blinkStartupLEDs();
     }
 }
+
+#include "compile_checks.h"
