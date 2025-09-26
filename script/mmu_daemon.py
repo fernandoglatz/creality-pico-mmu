@@ -123,7 +123,11 @@ def monitor_arduino_status():
 
     while running:
         if arduino_started:
-            if time.time() - arduino_last_alive > ARDUINO_ALIVE_TIMEOUT_SECONDS:
+            time_since_arduino_last_alive = time.time() - arduino_last_alive
+            if time_since_arduino_last_alive > ARDUINO_ALIVE_TIMEOUT_SECONDS * 10:
+                arduino_last_alive = time.time()
+
+            elif time_since_arduino_last_alive > ARDUINO_ALIVE_TIMEOUT_SECONDS:
                 logger.warning("Arduino is not alive. Restarting connection...")
                 arduino_started = False
 
@@ -132,6 +136,7 @@ def monitor_arduino_status():
                 except Exception:
                     pass
                 serial_port = None
+               
 
         time.sleep(1)
 

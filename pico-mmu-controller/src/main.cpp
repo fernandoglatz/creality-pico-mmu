@@ -853,7 +853,7 @@ void processSerialInput() {
 
         const char* posStr = strstr(inputStr, "FILAMENT_POSITIONS");
         if (posStr) {
-            sscanf(posStr, "FILAMENT_POSITIONS %d %d %d %d %d %d %d %d",
+            sscanf(posStr, "FILAMENT_POSITIONS (%d, %d, %d, %d, %d, %d, %d, %d)",
                    &newPositions[0], &newPositions[1], &newPositions[2], &newPositions[3],
                    &newPositions[4], &newPositions[5], &newPositions[6], &newPositions[7]);
 
