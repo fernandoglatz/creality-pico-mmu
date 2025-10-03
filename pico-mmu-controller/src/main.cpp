@@ -935,7 +935,7 @@ void processSerialInput() {
         logInfo(F("Retracting..."), "");
 
         responseOk();  // async
-        delay(200);
+        delay(375);
 
         retract(milimeters, rpm);
         logInfo(F("Retracted"), "");
