@@ -115,6 +115,9 @@ const long CYAN_COLOR = pixels.Color(0, 150, 255);
 const long MAGENTA_COLOR = pixels.Color(255, 0, 255);
 const long ORANGE_COLOR = pixels.Color(255, 128, 0);
 
+// button control
+const unsigned long PRESS_INTERVAL = 500;
+
 // config from machine
 // default, change it in printer config
 int filamentPositions[] = {170, 148, 126, 104, 80, 56, 32, 10};
@@ -122,6 +125,8 @@ long extrudeMillimeters = 32;
 long retractMillimeters = 60;
 long millimetersToStuck = 80;
 double millimetersPerRotation = 18.28571429;
+int cutterServoPositionOpened = 0;
+int cutterServoPositionClosed = 120;
 
 void logInfo(const String& message, const String& extra) {
     Serial.print("[");
@@ -311,6 +316,7 @@ void playMIDI(const int* melody, const int* noteDurations, int notes, bool ledEn
 
         if (note == 0) {
             noTone(BUZZER_PIN);
+
         } else {
             tone(BUZZER_PIN, note, noteDuration);
 
@@ -481,6 +487,7 @@ bool setFilament(int index) {
             changeLED(i, BLACK_COLOR);
         }
     }
+
     changeLED(activeFilament, WHITE_COLOR);
 
     bool filamentState = filamentStates[activeFilament];
@@ -621,7 +628,7 @@ void rotateMmuToSensor(int targetState, long milimeters, long milimetersToStuck,
     if (hubState == targetState) {
         hubStateStucked = true;
         changeLED(activeFilament, ORANGE_COLOR);
-        logWarn("Hub sensor stucked or missing", (""));
+        logWarn("Hub sensor stucked", (""));
     }
 
     digitalWrite(MMU_ENABLE_PIN, LOW);
@@ -661,7 +668,7 @@ void rotateMmuToSensor(int targetState, long milimeters, long milimetersToStuck,
 
             changeLED(activeFilament, ORANGE_COLOR);
 
-            logWarn("Hub sensor stucked or missing on retract", (""));
+            logWarn("Hub sensor stucked on retract", (""));
             break;
 
         } else if (direction == MMU_DIRECTION && steps > stepsToStuck && !autoExtruding) {
@@ -669,7 +676,7 @@ void rotateMmuToSensor(int targetState, long milimeters, long milimetersToStuck,
 
             changeLED(activeFilament, ORANGE_COLOR);
 
-            logWarn("Hub sensor stucked or missing on extrude", (""));
+            logWarn("Hub sensor stucked on extrude", (""));
             break;
         }
 
@@ -787,23 +794,35 @@ void readSensors(bool soundEnabled) {
     }
 }
 
-unsigned long actionButtonPressedTime = 0;
-
 void readActionButtonPressed() {
     bool state = mcp.digitalRead(ACTION_BUTTON_PIN);
+    bool lastState = !state;
 
-    if (state == LOW && actionButtonPressedTime == 0) {
-        actionButtonPressedTime = millis();
-    }
+    if (state == LOW) {
+        unsigned long actionButtonPressedTime = millis();
+        unsigned long buttonPressedDuration = 0;
+        int buttonPressCount = 0;
 
-    if (state == HIGH && actionButtonPressedTime > 0) {
-        unsigned long buttonPressedDuration = millis() - actionButtonPressedTime;
-        actionButtonPressedTime = 0;
+        while (state == LOW || (millis() - actionButtonPressedTime) < PRESS_INTERVAL) {
+            state = mcp.digitalRead(ACTION_BUTTON_PIN);
+
+            if (state != lastState) {
+                lastState = state;
+
+                if (state == LOW) {
+                    buttonPressCount++;
+                    actionButtonPressedTime = millis();
+
+                } else {
+                    buttonPressedDuration = millis() - actionButtonPressedTime;
+                }
+            }
+        }
 
         buttonClickSound();
 
-        if (buttonPressedDuration > 1000) {
-            logInfo(F("Action button pressed long"), "");
+        if (buttonPressedDuration > PRESS_INTERVAL) {
+            logInfo(F("Pressed long"), "");
 
             if (activeFilament > -1 && filamentStates[activeFilament] == LOW && hubState == HIGH) {
                 autoExtruding = true;
@@ -815,9 +834,19 @@ void readActionButtonPressed() {
                 filamentRelease();
                 autoExtruding = false;
             }
-        } else {
-            logInfo(F("Action button pressed short"), "");
+
+        } else if (buttonPressCount == 1) {
+            logInfo(F("Pressed short"), "");
             filamentRelease();
+
+        } else if (buttonPressCount == 2) {
+            logInfo(F("Pressed double"), "");
+            setCutterServoPosition(cutterServoPositionClosed);
+            setCutterServoPosition(cutterServoPositionOpened);
+
+        } else {
+            logWarn(F("Unknown press count "), String(buttonPressCount));
+            errorMIDI(false);
         }
     }
 }
@@ -882,6 +911,16 @@ void processSerialInput() {
             sscanf(mmToStkStr, "MM_TO_STUCK %ld", &millimetersToStuck);
         }
 
+        const char* cutterOpenStr = strstr(inputStr, "CUTTER_OPENED");
+        if (cutterOpenStr) {
+            sscanf(cutterOpenStr, "CUTTER_OPENED %d", &cutterServoPositionOpened);
+        }
+
+        const char* cutterCloseStr = strstr(inputStr, "CUTTER_CLOSED");
+        if (cutterCloseStr) {
+            sscanf(cutterCloseStr, "CUTTER_CLOSED %d", &cutterServoPositionClosed);
+        }
+
         logInfo(F("New positions: "), "");
         for (int i = 0; i < NUMBER_OF_FILAMENTS; i++) {
             logInfo(String(i + 1) + " => " + String(filamentPositions[i]), "");
@@ -891,6 +930,9 @@ void processSerialInput() {
         logInfo(F("New retract mm: "), String(retractMillimeters));
         logInfo(F("New mm per rotation: "), String(millimetersPerRotation));
         logInfo(F("New mm to stuck: "), String(millimetersToStuck));
+        logInfo(F("New cutter opened pos: "), String(cutterServoPositionOpened));
+        logInfo(F("New cutter closed pos: "), String(cutterServoPositionClosed));
+
         logInfo(F("Config synced"), "");
         responseOk();
 
@@ -935,7 +977,7 @@ void processSerialInput() {
         logInfo(F("Retracting..."), "");
 
         responseOk();  // async
-        delay(375);
+        delay(350);
 
         retract(milimeters, rpm);
         logInfo(F("Retracted"), "");
@@ -985,6 +1027,7 @@ void processSerialInput() {
         int position = input.substring(input.indexOf(' ') + 1).toInt();
         logInfo(F("Playing MIDI "), String(position));
         bool played = playMIDI(position);
+
         if (played) {
             logInfo(F("MIDI played"), "");
             responseOk();
