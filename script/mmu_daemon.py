@@ -136,7 +136,6 @@ def monitor_arduino_status():
                 except Exception:
                     pass
                 serial_port = None
-               
 
         time.sleep(1)
 
